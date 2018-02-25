@@ -1,7 +1,8 @@
 package main
 
 import (
-	"github.com/bwesterb/go-atum"   // imported as atum
+	"github.com/bwesterb/go-atum" // imported as atum
+	"github.com/bwesterb/go-atum/stamper"
 	"github.com/bwesterb/go-xmssmt" // imported as xmssmt
 
 	"golang.org/x/crypto/ed25519"
@@ -22,10 +23,10 @@ import (
 // Configuration of the atum server
 type Conf struct {
 	// The maximum size of nonces to accept
-	MaxNonceSize int `yaml:"maxNonceSize"`
+	MaxNonceSize int64 `yaml:"maxNonceSize"`
 
 	// Maximum lag in seconds to accept
-	AcceptableLag int `yaml:"acceptableLag"`
+	AcceptableLag int64 `yaml:"acceptableLag"`
 
 	// Default signature algorithm the server uses
 	DefaultSigAlg atum.SignatureAlgorithm `yaml:"defaultSigAlg"`
@@ -59,11 +60,65 @@ var (
 
 func serverInfoHandler(w http.ResponseWriter, r *http.Request) {
 	buf, _ := json.Marshal(serverInfo)
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(buf)
+}
+
+func processAtumRequest(req atum.Request) (resp atum.Response) {
+	var tsTime int64
+	if req.Time != nil {
+		if time.Now().Unix()-*req.Time > conf.AcceptableLag {
+			resp.SetError(atum.ErrorCodeLag)
+			resp.Info = &serverInfo
+			return
+		}
+		tsTime = *req.Time
+	} else {
+		tsTime = time.Now().Unix()
+	}
+
+	if req.Nonce == nil {
+		resp.SetError(atum.ErrorMissingNonce)
+		return
+	}
+
+	if int64(len(req.Nonce)) > conf.MaxNonceSize {
+		resp.SetError(atum.ErrorNonceTooLong)
+		resp.Info = &serverInfo
+		return
+	}
+
+	alg := conf.DefaultSigAlg
+	if req.PreferredSigAlg != nil {
+		alg = *req.PreferredSigAlg
+	}
+
+	for {
+		switch alg {
+		case atum.Ed25519:
+			ts := stamper.CreateEd25519Timestamp(
+				ed25519Sk, ed25519Pk, tsTime, req.Nonce)
+			resp.Stamp = &ts
+		case atum.XMSSMT:
+			ts, err := stamper.CreateXMSSMTTimestamp(
+				xmssmtSk, xmssmtPk, tsTime, req.Nonce)
+			if err != nil {
+				log.Printf("CreateXMSSMTTimestamp: %v", err)
+			}
+			resp.Stamp = ts
+		default:
+			alg = conf.DefaultSigAlg
+			continue
+		}
+		break
+	}
+
+	return
 }
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	var req atum.Request
+
 	reqBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return
@@ -72,7 +127,12 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
 		return
 	}
-	// TODO finish
+
+	resp := processAtumRequest(req)
+
+	w.Header().Set("Content-Type", "application/json")
+	buf, _ := json.Marshal(resp)
+	w.Write(buf)
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +166,9 @@ func main() {
 		"path to configuration file")
 	flag.Parse()
 
+	// Set up XMSSMT logging
+	xmssmt.EnableLogging()
+
 	// parse configuration file
 	if _, err := os.Stat(confPath); os.IsNotExist(err) {
 		fmt.Printf("Error: could not find configuration file: %s\n\n", confPath)
@@ -121,7 +184,7 @@ func main() {
 	loadXMSSMTKey()
 
 	log.Printf("Ed25519 public key: %s",
-		base64.RawURLEncoding.EncodeToString(ed25519Pk))
+		base64.StdEncoding.EncodeToString(ed25519Pk))
 	xmssmtPkText, _ := xmssmtPk.MarshalText()
 	log.Printf("XMSSMT public key:  %s", xmssmtPkText)
 
