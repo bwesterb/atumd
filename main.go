@@ -3,11 +3,14 @@ package main
 import (
 	"github.com/bwesterb/go-atum" // imported as atum
 	"github.com/bwesterb/go-atum/stamper"
+	"github.com/bwesterb/go-pow"    // imported as pow
 	"github.com/bwesterb/go-xmssmt" // imported as xmssmt
 
 	"golang.org/x/crypto/ed25519"
+	"golang.org/x/crypto/sha3"
 	"gopkg.in/yaml.v2"
 
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -17,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 )
 
@@ -42,6 +46,18 @@ type Conf struct {
 
 	// XMSS[MT] algorithm to use when generating a new key
 	XMSSMTAlg string `yaml:"xmssmtAlg"`
+
+	// Proof of Work difficulty for XMSSMT.
+	XMSSMTPowDifficulty *uint32 `yaml:"xmssmtPowDifficulty`
+
+	// Proof of Work difficulty for Ed25519.
+	Ed25519PowDifficulty *uint32 `yaml:"ed25519PowDifficulty`
+
+	// Key to generate Proof of Work nonces with
+	PowKey []byte `yaml:"powKey"`
+
+	// Interval between changing the proof of work nonces
+	PowWindow time.Duration `yaml:"powWindow"`
 }
 
 // Globals
@@ -55,11 +71,61 @@ var (
 	xmssmtSk *xmssmt.PrivateKey
 	xmssmtPk *xmssmt.PublicKey
 
-	serverInfo atum.ServerInfo
+	serverInfo     atum.ServerInfo
+	serverInfoLock sync.Mutex
 )
 
+// Recompute proof of work nonces
+func computePowNonces() {
+	now := time.Now()
+	nonce := make([]byte, 32)
+	startOfWindow := now.Truncate(conf.PowWindow)
+	h := sha3.NewShake128()
+	h.Write(conf.PowKey)
+	buf, _ := startOfWindow.MarshalBinary()
+	h.Write(buf)
+	h.Read(nonce)
+	log.Printf("Proof of work nonce: %s",
+		base64.StdEncoding.EncodeToString(nonce))
+	serverInfoLock.Lock()
+	defer serverInfoLock.Unlock()
+
+	if conf.Ed25519PowDifficulty != nil {
+		serverInfo.RequiredProofOfWork[atum.Ed25519] = pow.Request{
+			Difficulty: *conf.Ed25519PowDifficulty,
+			Nonce:      nonce,
+			Alg:        pow.Sha2BDay,
+		}
+	}
+	if conf.XMSSMTPowDifficulty != nil {
+		serverInfo.RequiredProofOfWork[atum.XMSSMT] = pow.Request{
+			Difficulty: *conf.XMSSMTPowDifficulty,
+			Nonce:      nonce,
+			Alg:        pow.Sha2BDay,
+		}
+	}
+}
+
+func powNonceRevolver() {
+	for {
+		now := time.Now()
+		startOfWindow := now.Truncate(conf.PowWindow)
+		endOfWindow := startOfWindow.Add(conf.PowWindow)
+		time.Sleep(endOfWindow.Sub(now))
+		computePowNonces()
+	}
+}
+
+func getServerInfo() *atum.ServerInfo {
+	serverInfoLock.Lock()
+	defer serverInfoLock.Unlock()
+	info := serverInfo // this is a copy
+	return &info
+}
+
 func serverInfoHandler(w http.ResponseWriter, r *http.Request) {
-	buf, _ := json.Marshal(serverInfo)
+	info := getServerInfo()
+	buf, _ := json.Marshal(info)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(buf)
 }
@@ -69,7 +135,7 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 	if req.Time != nil {
 		if time.Now().Unix()-*req.Time > conf.AcceptableLag {
 			resp.SetError(atum.ErrorCodeLag)
-			resp.Info = &serverInfo
+			resp.Info = getServerInfo()
 			return
 		}
 		tsTime = *req.Time
@@ -82,9 +148,10 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 		return
 	}
 
+	info := getServerInfo()
 	if int64(len(req.Nonce)) > conf.MaxNonceSize {
 		resp.SetError(atum.ErrorNonceTooLong)
-		resp.Info = &serverInfo
+		resp.Info = info
 		return
 	}
 
@@ -94,6 +161,23 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 	}
 
 	for {
+		powReq, ok := info.RequiredProofOfWork[alg]
+		if ok {
+			if req.ProofOfWork == nil {
+				resp.SetError(atum.ErrorMissingPow)
+				resp.Info = info
+				return
+			}
+			ok := req.ProofOfWork.Check(
+				powReq,
+				atum.EncodeTimeNonce(tsTime, req.Nonce))
+			if !ok {
+				resp.SetError(atum.ErrorPowInvalid)
+				resp.Info = info
+				return
+			}
+		}
+
 		switch alg {
 		case atum.Ed25519:
 			ts := stamper.CreateEd25519Timestamp(
@@ -160,6 +244,10 @@ func main() {
 	conf.Ed25519KeyPath = "ed25519.key"
 	conf.BindAddr = ":8080"
 	conf.XMSSMTAlg = "XMSSMT-SHAKE_40/4_512"
+	conf.Ed25519PowDifficulty = nil
+	var sixteen uint32 = 16
+	conf.XMSSMTPowDifficulty = &sixteen
+	conf.PowWindow, _ = time.ParseDuration("24h")
 
 	// parse commandline
 	flag.StringVar(&confPath, "config", "config.yaml",
@@ -179,6 +267,12 @@ func main() {
 		return
 	}
 
+	if conf.PowKey == nil {
+		log.Printf("powKey is not set.  Generating a new one (again?) ...")
+		conf.PowKey = make([]byte, 32)
+		rand.Read(conf.PowKey)
+	}
+
 	// load keys
 	loadEd25519Key()
 	loadXMSSMTKey()
@@ -190,10 +284,13 @@ func main() {
 
 	// set up server information struct
 	serverInfo = atum.ServerInfo{
-		MaxNonceSize:  conf.MaxNonceSize,
-		AcceptableLag: conf.AcceptableLag,
-		DefaultSigAlg: conf.DefaultSigAlg,
+		MaxNonceSize:        conf.MaxNonceSize,
+		AcceptableLag:       conf.AcceptableLag,
+		DefaultSigAlg:       conf.DefaultSigAlg,
+		RequiredProofOfWork: make(map[atum.SignatureAlgorithm]pow.Request),
 	}
+	computePowNonces()
+	go powNonceRevolver()
 
 	// set up HTTP server
 	http.HandleFunc("/", rootHandler)
