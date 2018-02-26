@@ -12,6 +12,7 @@ import (
 
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -26,6 +27,9 @@ import (
 
 // Configuration of the atum server
 type Conf struct {
+	// Canonical URL
+	CanonicalUrl string `yaml:"canonicalUrl"`
+
 	// The maximum size of nonces to accept
 	MaxNonceSize int64 `yaml:"maxNonceSize"`
 
@@ -58,6 +62,25 @@ type Conf struct {
 
 	// Interval between changing the proof of work nonces
 	PowWindow time.Duration `yaml:"powWindow"`
+
+	// List of other public keys that we should tell clients to trust
+	// for this server Url.  The might be old public keys, or public keys
+	// of others servers behind the same Url.
+	OtherTrustedPublicKeys []AlgPkPair `yaml:"otherTrustedPublicKeys"`
+
+	// How often should clients check in about public keys
+	PublicKeyCacheDuration time.Duration `yaml:"publicKeyCacheDuration"`
+}
+
+type AlgPkPair struct {
+	Alg       atum.SignatureAlgorithm `yaml:"alg"`
+	PublicKey []byte                  `yaml:"publicKey"`
+}
+
+func (pair AlgPkPair) String() string {
+	return fmt.Sprintf("%s-%s",
+		pair.Alg,
+		base64.StdEncoding.EncodeToString(pair.PublicKey))
 }
 
 // Globals
@@ -73,6 +96,8 @@ var (
 
 	serverInfo     atum.ServerInfo
 	serverInfoLock sync.Mutex
+
+	trustedPkLut map[string]bool
 )
 
 // Recompute proof of work nonces
@@ -194,10 +219,10 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 			alg = conf.DefaultSigAlg
 			continue
 		}
-		break
-	}
 
-	return
+		resp.Stamp.ServerUrl = conf.CanonicalUrl
+		return
+	}
 }
 
 func requestHandler(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +241,43 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	buf, _ := json.Marshal(resp)
+	w.Write(buf)
+}
+
+func checkPkHandler(w http.ResponseWriter, r *http.Request) {
+	hexPks, ok := r.URL.Query()["pk"]
+	if !ok {
+		http.Error(w, "Missing pk query parameter", http.StatusBadRequest)
+		return
+	}
+	if len(hexPks) != 1 {
+		http.Error(w, "Should only have only pk query parameter",
+			http.StatusBadRequest)
+		return
+	}
+	pk, err := hex.DecodeString(hexPks[0])
+	if err != nil {
+		http.Error(w, "Failed to parse pk parameter", http.StatusBadRequest)
+		return
+	}
+	algs, ok := r.URL.Query()["alg"]
+	if !ok {
+		http.Error(w, "Missing alg query parameter", http.StatusBadRequest)
+		return
+	}
+	if len(algs) != 1 {
+		http.Error(w, "Should only have only alg query parameter",
+			http.StatusBadRequest)
+		return
+	}
+	alg := atum.SignatureAlgorithm(algs[0])
+	_, ok = trustedPkLut[AlgPkPair{alg, pk}.String()]
+	resp := atum.PublicKeyCheckResponse{
+		Trusted: ok,
+		Expires: time.Now().Add(conf.PublicKeyCacheDuration),
+	}
+	buf, _ := json.Marshal(resp)
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(buf)
 }
 
@@ -248,6 +310,7 @@ func main() {
 	var sixteen uint32 = 16
 	conf.XMSSMTPowDifficulty = &sixteen
 	conf.PowWindow, _ = time.ParseDuration("24h")
+	conf.PublicKeyCacheDuration, _ = time.ParseDuration("720h")
 
 	// parse commandline
 	flag.StringVar(&confPath, "config", "config.yaml",
@@ -265,12 +328,26 @@ func main() {
 		buf, _ := yaml.Marshal(&conf)
 		fmt.Printf("%s\n", buf) // TODO indent
 		return
+	} else {
+		buf, err := ioutil.ReadFile(confPath)
+		if err != nil {
+			log.Fatalf("Could not read %s: %v", confPath, err)
+		}
+		err = yaml.Unmarshal(buf, &conf)
+		if err != nil {
+			log.Fatalf("Could not parse config files: %v", err)
+		}
 	}
 
 	if conf.PowKey == nil {
 		log.Printf("powKey is not set.  Generating a new one (again?) ...")
 		conf.PowKey = make([]byte, 32)
 		rand.Read(conf.PowKey)
+	}
+
+	if conf.CanonicalUrl == "" {
+		conf.CanonicalUrl = fmt.Sprintf("https://%s", conf.BindAddr)
+		log.Printf("canonicalUrl is not set.  Guessing %s", conf.CanonicalUrl)
 	}
 
 	// load keys
@@ -292,7 +369,17 @@ func main() {
 	computePowNonces()
 	go powNonceRevolver()
 
+	// Build the look-up-table of trusted public keys
+	trustedPkLut = make(map[string]bool)
+	xmssmtPkBytes, _ := xmssmtPk.MarshalBinary()
+	trustedPkLut[AlgPkPair{atum.XMSSMT, xmssmtPkBytes}.String()] = true
+	trustedPkLut[AlgPkPair{atum.Ed25519, []byte(ed25519Pk)}.String()] = true
+	for _, pair := range conf.OtherTrustedPublicKeys {
+		trustedPkLut[pair.String()] = true
+	}
+
 	// set up HTTP server
+	http.HandleFunc("/checkPublicKey", checkPkHandler)
 	http.HandleFunc("/", rootHandler)
 
 	// set up signal handler to catch keyboard interrupt
