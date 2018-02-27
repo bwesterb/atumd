@@ -158,7 +158,11 @@ func serverInfoHandler(w http.ResponseWriter, r *http.Request) {
 func processAtumRequest(req atum.Request) (resp atum.Response) {
 	var tsTime int64
 	if req.Time != nil {
-		if time.Now().Unix()-*req.Time > conf.AcceptableLag {
+		lag := time.Now().Unix() - *req.Time
+		if lag < 0 {
+			lag = -lag
+		}
+		if lag > conf.AcceptableLag {
 			resp.SetError(atum.ErrorCodeLag)
 			resp.Info = getServerInfo()
 			return
