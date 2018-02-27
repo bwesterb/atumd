@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 )
@@ -80,8 +81,22 @@ type Conf struct {
 }
 
 type AlgPkPair struct {
-	Alg       atum.SignatureAlgorithm `yaml:"alg"`
-	PublicKey []byte                  `yaml:"publicKey"`
+	Alg       atum.SignatureAlgorithm
+	PublicKey []byte
+}
+
+func (pair *AlgPkPair) UnmarshalText(buf []byte) error {
+	var err error
+	bits := strings.SplitN(string(buf), "-", 2)
+	if len(bits) != 2 {
+		return fmt.Errorf("Should have one a dash between alg type and pk")
+	}
+	pair.Alg = atum.SignatureAlgorithm(bits[0])
+	pair.PublicKey, err = base64.StdEncoding.DecodeString(bits[1])
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (pair AlgPkPair) String() string {

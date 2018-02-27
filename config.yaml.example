@@ -1,0 +1,47 @@
+# You probably want to configure these
+canonicalUrl: https://path.to/rproxy
+bindAddr: localhost:8080
+
+# Maximum size of nonce to sign.  Best to keep above 64.
+maxNonceSize: 128
+
+# Will still sign a timestamp if its this far of our current local time
+# in seconds.
+acceptableLag: 60
+
+# The default signature algorithm.  Either ed25519 or xmssmt.
+defaultSigAlg: xmssmt
+
+# Path to store private keys.  Will be generated if not present.
+xmssmtKeyPath: xmssmt.key
+ed25519KeyPath: ed25519.key
+
+# XMSS(MT) instance to use.
+xmssmtAlg: XMSSMT-SHAKE_40/4_512
+
+# Require a proof-of-work of the given difficulty for the favious
+# signature algorithms.  If null, no proof of work is required.
+xmssmtPowDifficulty: 16
+ed25519PowDifficulty: null
+
+# Generate proof-of-work nonces from the given key.  Useful if running
+# several Atum servers between the same URL.
+powKey: null
+
+# How often to rotate the proof-of-work nonce.
+powWindow: 24h0m0s
+
+# List of other trusted public keys.
+# Each entry should be of the form:  alg-base64encodedPk
+otherTrustedPublicKeys:
+    - ed25519-/jm13Cfq5Gr+iMqQweoRvJv+HbU7+JNFJIHq1WTm+ww=
+    - xmssmt-6gdaBKiEUa2MnwoMp0y1vBSx86YkyG6QOWEB9F0/7tPladMNZPE5+s6FUE4yqPB105RPd6kKnc7qT47Srt8CwZ2zKovNmcRg1jB315ZECK3JDpeLLglG38D6kYmJw2kPdhmdrsleMIUEqBwYwGWekjJ7L8IiwSf2tleI5B6ZZkklJJUq
+
+# How often should clients check in about the validity of public keys?
+publicKeyCacheDuration: 720h0m0s
+
+# Enable Prometheus metrics?
+# NOTE these are hosted publicly at /metrics.
+enableMetrics: false
+
+# vim: ft=yaml
