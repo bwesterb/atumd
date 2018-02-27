@@ -6,11 +6,11 @@ import (
 	"github.com/bwesterb/go-pow"    // imported as pow
 	"github.com/bwesterb/go-xmssmt" // imported as xmssmt
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/yaml.v2"
-	// "github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"crypto/rand"
 	"encoding/base64"
@@ -110,17 +110,82 @@ var (
 	// Configuration
 	conf Conf
 
+	// Keypairs
 	ed25519Sk ed25519.PrivateKey
 	ed25519Pk ed25519.PublicKey
 
 	xmssmtSk *xmssmt.PrivateKey
 	xmssmtPk *xmssmt.PublicKey
 
+	// Other trusted public keys
+	trustedPkLut map[string]bool
+
+	// Server info (and lock)
 	serverInfo     atum.ServerInfo
 	serverInfoLock sync.Mutex
 
-	trustedPkLut map[string]bool
+	// Prometheus metrics
+	metrStampDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "atumd_stamp_duration_seconds",
+			Help:       "Time it took to set timestamp",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		}, []string{"alg"},
+	)
+
+	metrStampErrors = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "atumd_stamp_errors",
+			Help: "Errors by clients that requested timestamps",
+		}, []string{"code"},
+	)
+
+	metrPkChecks = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "atumd_pkchecks",
+			Help: "Number of times a public key was checked",
+		})
+
+	metrXmssmtSkUsed = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "atumd_xmssmt_skused",
+			Help: "Fraction of signatures used",
+		}, func() float64 {
+			params := xmssmtSk.Context().Params()
+			return float64(xmssmtSk.SeqNo()) / float64(params.MaxSignatureSeqNo())
+		})
+	metrXmssmtUnretiredSeqnos = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "atumd_xmssmt_unretired_seqnos",
+			Help: "Number of unretired signature seqnos",
+		}, func() float64 {
+			return float64(xmssmtSk.UnretiredSeqNos())
+		})
+	metrXmssmtCachedSubtrees = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "atumd_xmssmt_cached_subtrees",
+			Help: "Number of subtrees in cache",
+		}, func() float64 {
+			return float64(xmssmtSk.CachedSubTrees())
+		})
+	metrXmssmtBorrowedSeqNos = prometheus.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "atumd_xmssmt_borrowed_seqnos",
+			Help: "Number of signature seqnos borrowed from privkey container",
+		}, func() float64 {
+			return float64(xmssmtSk.BorrowedSeqNos())
+		})
 )
+
+func registerMetrics() {
+	prometheus.MustRegister(metrStampDuration)
+	prometheus.MustRegister(metrStampErrors)
+	prometheus.MustRegister(metrPkChecks)
+	prometheus.MustRegister(metrXmssmtSkUsed)
+	prometheus.MustRegister(metrXmssmtUnretiredSeqnos)
+	prometheus.MustRegister(metrXmssmtCachedSubtrees)
+	prometheus.MustRegister(metrXmssmtBorrowedSeqNos)
+}
 
 // Recompute proof of work nonces
 func computePowNonces() {
@@ -229,6 +294,7 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 			}
 		}
 
+		start := time.Now()
 		switch alg {
 		case atum.Ed25519:
 			ts := stamper.CreateEd25519Timestamp(
@@ -245,6 +311,8 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 			alg = conf.DefaultSigAlg
 			continue
 		}
+		metrStampDuration.With(prometheus.Labels{"alg": string(alg)}).Observe(
+			time.Since(start).Seconds())
 
 		resp.Stamp.ServerUrl = conf.CanonicalUrl
 		return
@@ -264,6 +332,10 @@ func requestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := processAtumRequest(req)
+	if resp.Error != nil {
+		metrStampErrors.With(prometheus.Labels{
+			"code": string(*resp.Error)}).Inc()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	buf, _ := json.Marshal(resp)
@@ -298,6 +370,7 @@ func checkPkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	alg := atum.SignatureAlgorithm(algs[0])
 	_, ok = trustedPkLut[AlgPkPair{alg, pk}.String()]
+	metrPkChecks.Inc()
 	resp := atum.PublicKeyCheckResponse{
 		Trusted: ok,
 		Expires: time.Now().Add(conf.PublicKeyCacheDuration),
@@ -409,6 +482,7 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 
 	if conf.EnableMetrics {
+		registerMetrics()
 		http.Handle("/metrics", promhttp.Handler())
 	}
 
