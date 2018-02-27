@@ -9,6 +9,8 @@ import (
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/yaml.v2"
+	// "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"crypto/rand"
 	"encoding/base64"
@@ -70,6 +72,11 @@ type Conf struct {
 
 	// How often should clients check in about public keys
 	PublicKeyCacheDuration time.Duration `yaml:"publicKeyCacheDuration"`
+
+	// Enable prometheus metrics.
+	//
+	// NOTE, these are publicly exposed at /metrics.
+	EnableMetrics bool `yaml:"enableMetrics"`
 }
 
 type AlgPkPair struct {
@@ -385,6 +392,10 @@ func main() {
 	// set up HTTP server
 	http.HandleFunc("/checkPublicKey", checkPkHandler)
 	http.HandleFunc("/", rootHandler)
+
+	if conf.EnableMetrics {
+		http.Handle("/metrics", promhttp.Handler())
+	}
 
 	// set up signal handler to catch keyboard interrupt
 	signalChan := make(chan os.Signal, 1)
