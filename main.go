@@ -57,6 +57,10 @@ type Conf struct {
 	// Proof of Work difficulty for XMSSMT.
 	XMSSMTPowDifficulty *uint32 `yaml:"xmssmtPowDifficulty"`
 
+	// Number of signature sequence numbers to preallocate.  If the server
+	// crashes, this is the amount of signatures lost.
+	XMSSMTBorrowedSeqNos *uint32 `taml:"xmssmtBorrowedSeqNos"`
+
 	// Proof of Work difficulty for Ed25519.
 	Ed25519PowDifficulty *uint32 `yaml:"ed25519PowDifficulty"`
 
@@ -314,6 +318,15 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 		metrStampDuration.With(prometheus.Labels{"alg": string(alg)}).Observe(
 			time.Since(start).Seconds())
 
+		// Check if we need to borrow new XMSSMT seqnos
+		if alg == atum.XMSSMT && conf.XMSSMTBorrowedSeqNos != nil {
+			if err := xmssmtSk.BorrowExactlyIfBelow(
+				*conf.XMSSMTBorrowedSeqNos,
+				*conf.XMSSMTBorrowedSeqNos/10); err != nil {
+				log.Printf("BorrowExactlyIfBelow: %v", err)
+			}
+		}
+
 		resp.Stamp.ServerUrl = conf.CanonicalUrl
 		return
 	}
@@ -405,6 +418,8 @@ func main() {
 	conf.Ed25519KeyPath = "ed25519.key"
 	conf.BindAddr = ":8080"
 	conf.XMSSMTAlg = "XMSSMT-SHAKE_40/4_512"
+	var thousand uint32 = 1000
+	conf.XMSSMTBorrowedSeqNos = &thousand
 	conf.Ed25519PowDifficulty = nil
 	var sixteen uint32 = 16
 	conf.XMSSMTPowDifficulty = &sixteen
@@ -457,6 +472,9 @@ func main() {
 		base64.StdEncoding.EncodeToString(ed25519Pk))
 	xmssmtPkText, _ := xmssmtPk.MarshalText()
 	log.Printf("XMSSMT public key:  %s", xmssmtPkText)
+	if conf.XMSSMTBorrowedSeqNos != nil {
+		xmssmtSk.BorrowExactly(*conf.XMSSMTBorrowedSeqNos)
+	}
 
 	// set up server information struct
 	serverInfo = atum.ServerInfo{

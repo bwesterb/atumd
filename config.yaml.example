@@ -19,6 +19,10 @@ ed25519KeyPath: ed25519.key
 # XMSS(MT) instance to use.
 xmssmtAlg: XMSSMT-SHAKE_40/4_512
 
+# Number of signature sequence numbers to preallocate.  If the server
+# crashes, this is the amount of signatures lost.
+xmssmtBorrowedSeqNos: 1000
+
 # Require a proof-of-work of the given difficulty for the favious
 # signature algorithms.  If null, no proof of work is required.
 xmssmtPowDifficulty: 16
