@@ -52,10 +52,10 @@ type Conf struct {
 	XMSSMTAlg string `yaml:"xmssmtAlg"`
 
 	// Proof of Work difficulty for XMSSMT.
-	XMSSMTPowDifficulty *uint32 `yaml:"xmssmtPowDifficulty`
+	XMSSMTPowDifficulty *uint32 `yaml:"xmssmtPowDifficulty"`
 
 	// Proof of Work difficulty for Ed25519.
-	Ed25519PowDifficulty *uint32 `yaml:"ed25519PowDifficulty`
+	Ed25519PowDifficulty *uint32 `yaml:"ed25519PowDifficulty"`
 
 	// Key to generate Proof of Work nonces with
 	PowKey []byte `yaml:"powKey"`
