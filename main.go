@@ -575,6 +575,8 @@ func loadXMSSMTKey() {
 		log.Printf("        This might have been caused by a crash")
 	}
 
+	xmssmtSk.EnableSubTreePrecomputation()
+
 	// TODO check if Params() are the same as in settings
 }
 
