@@ -482,6 +482,7 @@ func main() {
 	// load keys
 	loadEd25519Key()
 	loadXMSSMTKey()
+	xmssmtSk.EnableSubTreePrecomputation()
 
 	log.Printf("Ed25519 public key: %s",
 		base64.StdEncoding.EncodeToString(ed25519Pk))
@@ -574,8 +575,6 @@ func loadXMSSMTKey() {
 		log.Printf("WARNING Lost %d XMSS[MT] signatures.", lostSigs)
 		log.Printf("        This might have been caused by a crash")
 	}
-
-	xmssmtSk.EnableSubTreePrecomputation()
 
 	// TODO check if Params() are the same as in settings
 }
