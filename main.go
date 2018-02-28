@@ -65,7 +65,7 @@ type Conf struct {
 	Ed25519PowDifficulty *uint32 `yaml:"ed25519PowDifficulty"`
 
 	// Key to generate Proof of Work nonces with
-	PowKey []byte `yaml:"powKey"`
+	PowKey yamlBinary `yaml:"powKey"`
 
 	// Interval between changing the proof of work nonces
 	PowWindow time.Duration `yaml:"powWindow"`
@@ -87,6 +87,21 @@ type Conf struct {
 type AlgPkPair struct {
 	Alg       atum.SignatureAlgorithm
 	PublicKey []byte
+}
+
+type yamlBinary []byte
+
+func (yb *yamlBinary) UnmarshalText(buf []byte) error {
+	buf, err := base64.StdEncoding.DecodeString(string(buf))
+	if err != nil {
+		return err
+	}
+	*yb = buf
+	return nil
+}
+
+func (yb yamlBinary) MarshalText() ([]byte, error) {
+	return []byte(base64.StdEncoding.EncodeToString(yb)), nil
 }
 
 func (pair *AlgPkPair) UnmarshalText(buf []byte) error {
