@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -522,10 +523,12 @@ func main() {
 
 	// set up signal handler to catch keyboard interrupt
 	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
+	signal.Notify(signalChan, syscall.SIGHUP, syscall.SIGINT,
+		syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
-		<-signalChan
-		log.Printf("SIGINT received, closing XMSS[MT] private key container")
+		code := <-signalChan
+		log.Printf("Signal %d received, closing XMSS[MT] private key container",
+			code)
 		if err := xmssmtSk.Close(); err != nil {
 			log.Printf("  ... failed: %v", err)
 			os.Exit(1)
