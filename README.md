@@ -2,14 +2,18 @@ atumd
 =====
 
 Post-quantum trusted time-stamping service.
+See [go-atum](https://github.com/bwesterb/go-atum) for more information
+on the protocol.
 
-Install using
+Setup
+-----
+To install `atumd`, run
 
 ```
 go get github.com/bwesterb/atumd
 ```
 
-Create a `config.yaml`:
+Then create a `config.yaml`:
 
 ```yaml
 bindAddr: :8080
@@ -30,5 +34,5 @@ For more configuration options, see [config.yaml.example](config.yaml.example)
 Clients
 -------
 
- - [go-atumd](https://github.com/bwesterb/go-atum),
+ - [go-atum](https://github.com/bwesterb/go-atum),
       Go client and Cli tool
