@@ -433,7 +433,7 @@ func main() {
 	conf.XMSSMTKeyPath = "xmssmt.key"
 	conf.Ed25519KeyPath = "ed25519.key"
 	conf.BindAddr = ":8080"
-	conf.XMSSMTAlg = "XMSSMT-SHAKE_40/4_512"
+	conf.XMSSMTAlg = "XMSSMT-SHAKE_40/4_256"
 	var thousand uint32 = 1000
 	conf.XMSSMTBorrowedSeqNos = &thousand
 	conf.Ed25519PowDifficulty = nil
