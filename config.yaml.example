@@ -16,7 +16,9 @@ defaultSigAlg: xmssmt
 xmssmtKeyPath: xmssmt.key
 ed25519KeyPath: ed25519.key
 
-# XMSS(MT) instance to use.
+# XMSS(MT) instance to use. For considerations chosing this, see
+#
+#   https://github.com/bwesterb/xmssmt/blob/master/README.md#considerations
 xmssmtAlg: XMSSMT-SHAKE_40/4_256
 
 # Number of signature sequence numbers to preallocate.  If the server
