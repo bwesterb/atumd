@@ -23,7 +23,7 @@ xmssmtAlg: XMSSMT-SHAKE_40/4_512
 # crashes, this is the amount of signatures lost.
 xmssmtBorrowedSeqNos: 1000
 
-# Require a proof-of-work of the given difficulty for the favious
+# Require a proof-of-work of the given difficulty for the various
 # signature algorithms.  If null, no proof of work is required.
 xmssmtPowDifficulty: 16
 ed25519PowDifficulty: null
