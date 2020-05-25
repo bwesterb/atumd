@@ -3,9 +3,9 @@ module github.com/bwesterb/atumd
 go 1.14
 
 require (
-	github.com/bwesterb/go-atum v1.1.1
+	github.com/bwesterb/go-atum v1.1.2
 	github.com/bwesterb/go-pow v1.0.0
-	github.com/bwesterb/go-xmssmt v1.3.0
+	github.com/bwesterb/go-xmssmt v1.4.0
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/prometheus/client_golang v1.6.0
 	github.com/prometheus/common v0.10.0 // indirect
