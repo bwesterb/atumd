@@ -13,6 +13,7 @@ acceptableLag: 60
 defaultSigAlg: xmssmt
 
 # Path to store private keys.  Will be generated if not present.
+# WARNING: do not make backups or copies of xmssmt.key.  See the README.
 xmssmtKeyPath: xmssmt.key
 ed25519KeyPath: ed25519.key
 
@@ -37,9 +38,20 @@ powWindow: 24h0m0s
 
 # List of other trusted public keys.
 # Each entry should be of the form:  alg-base64encodedPk
-otherTrustedPublicKeys:
-    - ed25519-/jm13Cfq5Gr+iMqQweoRvJv+HbU7+JNFJIHq1WTm+ww=
-    - xmssmt-6gdaBKiEUa2MnwoMp0y1vBSx86YkyG6QOWEB9F0/7tPladMNZPE5+s6FUE4yqPB105RPd6kKnc7qT47Srt8CwZ2zKovNmcRg1jB315ZECK3JDpeLLglG38D6kYmJw2kPdhmdrsleMIUEqBwYwGWekjJ7L8IiwSf2tleI5B6ZZkklJJUq
+#
+# This can be used for several reasons:
+#
+#  1. It can list a keypair whose signatures are still trusted, but
+#     to which access was lost, for instance because it ran out of
+#     signatures in case of XMSSMT or because the private key was
+#     corrupted.
+#  2. A keypair might be included of another redundant copy of this
+#     server.  (Servers must never use the same XMSSMT key, see
+#     the README --- instead generate a new keypair for each server
+#     and list the public keys in eachothers `otherTrustedPublicKeys`.)
+#otherTrustedPublicKeys:
+#    - ed25519-/jm13Cfq5Gr+iMqQweoRvJv+HbU7+JNFJIHq1WTm+ww=
+#    - xmssmt-6gdaBKiEUa2MnwoMp0y1vBSx86YkyG6QOWEB9F0/7tPladMNZPE5+s6FUE4yqPB105RPd6kKnc7qT47Srt8CwZ2zKovNmcRg1jB315ZECK3JDpeLLglG38D6kYmJw2kPdhmdrsleMIUEqBwYwGWekjJ7L8IiwSf2tleI5B6ZZkklJJUq
 
 # How often should clients check in about the validity of public keys?
 publicKeyCacheDuration: 720h0m0s
