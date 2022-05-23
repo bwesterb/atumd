@@ -83,6 +83,12 @@ type Conf struct {
 	//
 	// NOTE, these are publicly exposed at /metrics.
 	EnableMetrics bool `yaml:"enableMetrics"`
+
+	// File containing TLS certificate
+	TLSCertFile string `yaml:"tlsCertFile"`
+
+	// File containing TLS private key
+	TLSKeyFile string `yaml:"tlsKeyFile"`
 }
 
 type AlgPkPair struct {
@@ -539,8 +545,13 @@ func main() {
 	}()
 
 	// Run HTTP server
-	log.Printf("Listening on %s", conf.BindAddr)
-	log.Fatal(http.ListenAndServe(conf.BindAddr, nil))
+	if conf.TLSCertFile != "" {
+		log.Printf("Listening on %s with TLS enabled", conf.BindAddr)
+		log.Fatal(http.ListenAndServeTLS(conf.BindAddr, conf.TLSCertFile, conf.TLSKeyFile, nil))
+	} else {
+		log.Printf("Listening on %s", conf.BindAddr)
+		log.Fatal(http.ListenAndServe(conf.BindAddr, nil))
+	}
 }
 
 func loadXMSSMTKey() {
