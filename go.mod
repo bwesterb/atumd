@@ -6,6 +6,7 @@ require (
 	github.com/bwesterb/go-atum v1.1.3
 	github.com/bwesterb/go-pow v1.0.0
 	github.com/bwesterb/go-xmssmt v1.5.1
+	github.com/go-chi/cors v1.2.1
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/timshannon/bolthold v0.0.0-20210913165410-232392fc8a6a // indirect

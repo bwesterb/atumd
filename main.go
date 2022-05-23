@@ -5,6 +5,7 @@ import (
 	"github.com/bwesterb/go-atum/stamper"
 	"github.com/bwesterb/go-pow"    // imported as pow
 	"github.com/bwesterb/go-xmssmt" // imported as xmssmt
+	"github.com/go-chi/cors"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -512,9 +513,14 @@ func main() {
 		trustedPkLut[pair.String()] = true
 	}
 
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{http.MethodGet, http.MethodPost},
+	})
+
 	// set up HTTP server
-	http.HandleFunc("/checkPublicKey", checkPkHandler)
-	http.HandleFunc("/", rootHandler)
+	http.Handle("/checkPublicKey", c.Handler(http.HandlerFunc(checkPkHandler)))
+	http.Handle("/", c.Handler(http.HandlerFunc(rootHandler)))
 
 	if conf.EnableMetrics {
 		registerMetrics()
