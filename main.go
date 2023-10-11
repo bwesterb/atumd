@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io"
+
 	"github.com/bwesterb/go-atum" // imported as atum
 	"github.com/bwesterb/go-atum/stamper"
 	"github.com/bwesterb/go-pow"    // imported as pow
@@ -19,7 +21,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -116,7 +117,7 @@ func (pair *AlgPkPair) UnmarshalText(buf []byte) error {
 	var err error
 	bits := strings.SplitN(string(buf), "-", 2)
 	if len(bits) != 2 {
-		return fmt.Errorf("Should have one a dash between alg type and pk")
+		return fmt.Errorf("should have one a dash between alg type and pk")
 	}
 	pair.Alg = atum.SignatureAlgorithm(bits[0])
 	pair.PublicKey, err = base64.StdEncoding.DecodeString(bits[1])
@@ -358,7 +359,7 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 func requestHandler(w http.ResponseWriter, r *http.Request) {
 	var req atum.Request
 
-	reqBytes, err := ioutil.ReadAll(r.Body)
+	reqBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return
 	}
@@ -466,7 +467,7 @@ func main() {
 		fmt.Printf("%s\n", buf) // TODO indent
 		return
 	} else {
-		buf, err := ioutil.ReadFile(confPath)
+		buf, err := os.ReadFile(confPath)
 		if err != nil {
 			log.Fatalf("Could not read %s: %v", confPath, err)
 		}
@@ -607,9 +608,9 @@ func loadEd25519Key() {
 		if err != nil {
 			log.Fatalf("ed25519.GenerateKey: %v", err)
 		}
-		err = ioutil.WriteFile(conf.Ed25519KeyPath, []byte(ed25519Sk), 0600)
+		err = os.WriteFile(conf.Ed25519KeyPath, []byte(ed25519Sk), 0600)
 		if err != nil {
-			log.Fatalf("ioutil.WriteFile(%s):%v", conf.Ed25519KeyPath, err)
+			log.Fatalf("os.WriteFile(%s):%v", conf.Ed25519KeyPath, err)
 		}
 		return
 	}
@@ -624,7 +625,7 @@ func loadEd25519Key() {
 			fileInfo.Mode().Perm(), conf.Ed25519KeyPath)
 	}
 
-	buf, err := ioutil.ReadFile(conf.Ed25519KeyPath)
+	buf, err := os.ReadFile(conf.Ed25519KeyPath)
 	if err != nil {
 		log.Fatalf("Couldn't read %s: %v", conf.Ed25519KeyPath, err)
 	}
