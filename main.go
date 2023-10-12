@@ -45,6 +45,9 @@ type Conf struct {
 	// Default signature algorithm the server uses
 	DefaultSigAlg atum.SignatureAlgorithm `yaml:"defaultSigAlg"`
 
+	// Whether or not other signature algorithms besides DefaultSigAlg are disabled.
+	DisableOtherSigAlg bool `yaml:"disableOtherSigAlg"`
+
 	// Path to store XMSSMT key
 	XMSSMTKeyPath string `yaml:"xmssmtKeyPath"`
 
@@ -99,6 +102,8 @@ type AlgPkPair struct {
 }
 
 type yamlBinary []byte
+
+const ErrorUnsupportedSigAlg atum.ErrorCode = "unsupported signature algorithm"
 
 func (yb *yamlBinary) UnmarshalText(buf []byte) error {
 	buf, err := base64.StdEncoding.DecodeString(string(buf))
@@ -304,6 +309,12 @@ func processAtumRequest(req atum.Request) (resp atum.Response) {
 		alg = *req.PreferredSigAlg
 	}
 
+	if conf.DisableOtherSigAlg && alg != conf.DefaultSigAlg {
+		resp.SetError(ErrorUnsupportedSigAlg)
+		resp.Info = info
+		return
+	}
+
 	for {
 		powReq, ok := info.RequiredProofOfWork[alg]
 		if ok {
@@ -438,6 +449,7 @@ func main() {
 	conf.MaxNonceSize = 128
 	conf.AcceptableLag = 60
 	conf.DefaultSigAlg = "xmssmt"
+	conf.DisableOtherSigAlg = false
 	conf.XMSSMTKeyPath = "xmssmt.key"
 	conf.Ed25519KeyPath = "ed25519.key"
 	conf.BindAddr = ":8080"
@@ -449,6 +461,8 @@ func main() {
 	conf.XMSSMTPowDifficulty = &sixteen
 	conf.PowWindow, _ = time.ParseDuration("24h")
 	conf.PublicKeyCacheDuration, _ = time.ParseDuration("720h")
+
+	trustedPkLut = make(map[string]bool)
 
 	// parse commandline
 	flag.StringVar(&confPath, "config", "config.yaml",
@@ -489,16 +503,27 @@ func main() {
 	}
 
 	// load keys
-	loadEd25519Key()
-	loadXMSSMTKey()
-	xmssmtSk.EnableSubTreePrecomputation()
+	if conf.DefaultSigAlg == "ed25519" || !conf.DisableOtherSigAlg && conf.DefaultSigAlg != "ed25519" {
+		loadEd25519Key()
+		log.Printf("Ed25519 public key: %s",
+			base64.StdEncoding.EncodeToString(ed25519Pk))
 
-	log.Printf("Ed25519 public key: %s",
-		base64.StdEncoding.EncodeToString(ed25519Pk))
-	xmssmtPkText, _ := xmssmtPk.MarshalText()
-	log.Printf("XMSSMT public key:  %s", xmssmtPkText)
-	if conf.XMSSMTBorrowedSeqNos != nil {
-		xmssmtSk.BorrowExactly(*conf.XMSSMTBorrowedSeqNos)
+		// add to trusted public keys
+		trustedPkLut[AlgPkPair{atum.Ed25519, []byte(ed25519Pk)}.String()] = true
+	}
+
+	if conf.DefaultSigAlg == "xmssmt" || !conf.DisableOtherSigAlg && conf.DefaultSigAlg != "xmssmt" {
+		loadXMSSMTKey()
+		xmssmtSk.EnableSubTreePrecomputation()
+		xmssmtPkText, _ := xmssmtPk.MarshalText()
+		log.Printf("XMSSMT public key:  %s", xmssmtPkText)
+		if conf.XMSSMTBorrowedSeqNos != nil {
+			xmssmtSk.BorrowExactly(*conf.XMSSMTBorrowedSeqNos)
+		}
+
+		// add to trusted public keys
+		xmssmtPkBytes, _ := xmssmtPk.MarshalBinary()
+		trustedPkLut[AlgPkPair{atum.XMSSMT, xmssmtPkBytes}.String()] = true
 	}
 
 	// set up server information struct
@@ -512,10 +537,6 @@ func main() {
 	go powNonceRevolver()
 
 	// Build the look-up-table of trusted public keys
-	trustedPkLut = make(map[string]bool)
-	xmssmtPkBytes, _ := xmssmtPk.MarshalBinary()
-	trustedPkLut[AlgPkPair{atum.XMSSMT, xmssmtPkBytes}.String()] = true
-	trustedPkLut[AlgPkPair{atum.Ed25519, []byte(ed25519Pk)}.String()] = true
 	for _, pair := range conf.OtherTrustedPublicKeys {
 		trustedPkLut[pair.String()] = true
 	}
