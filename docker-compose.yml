@@ -1,0 +1,19 @@
+version: '3.1'
+
+services:
+
+  atumd:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - "./config.yaml:/config/config.yaml"
+    ports:
+      - "8080:8080"
+    expose:
+      - 8080
+    networks:
+      - default
+    entrypoint:
+      - "atumd"
+      - "-config=/config/config.yaml"

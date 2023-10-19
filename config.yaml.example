@@ -1,6 +1,6 @@
 # You probably want to configure these
 canonicalUrl: https://path.to/rproxy
-bindAddr: localhost:8080
+bindAddr: :8080
 
 # Maximum size of nonce to sign.  Best to keep above 64.
 maxNonceSize: 128
