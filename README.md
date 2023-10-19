@@ -34,7 +34,7 @@ For more configuration options, see [config.yaml.example](config.yaml.example)
 Warnings concerning redundancy and backups
 ------------------------------------------
 
-`atumd` uses the **statefull** XMSS[MT] Siganture scheme.  Each signature
+`atumd` uses the **statefull** XMSS[MT] Signature scheme.  Each signature
 has a *sequence number* (seqno) and a sequence number
 [must not](https://eprint.iacr.org/2016/1042.pdf) be reused as it
 is likely to lead to signature forgery.
