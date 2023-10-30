@@ -6,14 +6,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - SECRETS_LOCATION=/.secrets/
     volumes:
       - "./config.yaml:/config/config.yaml"
     ports:
       - "8080:8080"
     expose:
       - 8080
-    networks:
-      - default
-    entrypoint:
-      - "atumd"
+    command:
       - "-config=/config/config.yaml"

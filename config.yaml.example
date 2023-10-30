@@ -14,8 +14,8 @@ defaultSigAlg: xmssmt
 
 # Path to store private keys.  Will be generated if not present.
 # WARNING: do not make backups or copies of xmssmt.key.  See the README.
-xmssmtKeyPath: xmssmt.key
-ed25519KeyPath: ed25519.key
+xmssmtKeyPath: /.secrests/xmssmt.key
+ed25519KeyPath: /.secrets/ed25519.key
 
 # XMSS(MT) instance to use.
 xmssmtAlg: XMSSMT-SHAKE_40/4_256
