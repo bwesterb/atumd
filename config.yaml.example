@@ -12,6 +12,12 @@ acceptableLag: 60
 # The default signature algorithm.  Either ed25519 or xmssmt.
 defaultSigAlg: xmssmt
 
+# Whether or not other signature algorithms besides defaultSigAlg 
+# are disabled. This is useful if you only want to support one algorithm.
+# NOTE: if true, you can still verify validity of timestamps generated with 
+# any other supported algorithm for the keys listed in otherTrustedPublicKeys
+disableOtherSigAlg: false
+
 # Path to store private keys.  Will be generated if not present.
 # WARNING: do not make backups or copies of xmssmt.key.  See the README.
 xmssmtKeyPath: xmssmt.key
