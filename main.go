@@ -622,7 +622,7 @@ func loadXMSSMTKey() {
 }
 
 func loadEd25519Key() {
-	fileInfo, err := os.Stat(conf.Ed25519KeyPath)
+	_, err := os.Stat(conf.Ed25519KeyPath)
 	if os.IsNotExist(err) {
 		log.Printf("%s does not exist. Generating key ...", conf.Ed25519KeyPath)
 		ed25519Pk, ed25519Sk, err = ed25519.GenerateKey(nil)
