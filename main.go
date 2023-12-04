@@ -640,12 +640,6 @@ func loadEd25519Key() {
 		log.Fatalf("os.Stat(%s): %v", conf.Ed25519KeyPath, err)
 	}
 
-	// This check is not perfect (ie. symlinks), but it helps a bit.
-	if fileInfo.Mode().Perm()&007 != 0 {
-		log.Fatalf("I don't trust the permission %#o on %s",
-			fileInfo.Mode().Perm(), conf.Ed25519KeyPath)
-	}
-
 	buf, err := os.ReadFile(conf.Ed25519KeyPath)
 	if err != nil {
 		log.Fatalf("Couldn't read %s: %v", conf.Ed25519KeyPath, err)
