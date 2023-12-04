@@ -641,7 +641,7 @@ func loadEd25519Key() {
 	}
 
 	// This check is not perfect (ie. symlinks), but it helps a bit.
-	if fileInfo.Mode().Perm()&077 != 0 {
+	if fileInfo.Mode().Perm()&007 != 0 {
 		log.Fatalf("I don't trust the permission %#o on %s",
 			fileInfo.Mode().Perm(), conf.Ed25519KeyPath)
 	}
