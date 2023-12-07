@@ -1,23 +1,32 @@
 atumd
 =====
 
-Post-quantum trusted time-stamping service.
-See [go-atum](https://github.com/bwesterb/go-atum) for more information
-on the protocol.
+Post-quantum trusted time-stamping service. 
+See [go-atum](https://github.com/bwesterb/go-atum) for more information on the protocol.
 
 Setup
 -----
-To install `atumd`, run
 
-```
-go get github.com/bwesterb/atumd
-```
-
-Then create a `config.yaml`:
+Create a `config.yaml` file:
 
 ```yaml
 bindAddr: :8080
 canonicalUrl: http://localhost:8080
+```
+For all configuration options, see [config.yaml.example](config.yaml.example)
+
+**Run using Docker**
+The easiest way to run `atumd` for development purposes is using Docker.
+
+````
+docker-compose up
+````
+
+**Run using GO**
+To install `atumd`, run
+
+```
+go install github.com/bwesterb/atumd
 ```
 
 and run
@@ -29,12 +38,10 @@ atumd
 You probably want to configure a proper webserver like `nginx` to act
 as proxy and set a corresponding sane `canonicalUrl` with HTTPS.
 
-For more configuration options, see [config.yaml.example](config.yaml.example)
-
 Warnings concerning redundancy and backups
 ------------------------------------------
 
-`atumd` uses the **statefull** XMSS[MT] Siganture scheme.  Each signature
+`atumd` uses the **statefull** XMSS[MT] Signature scheme.  Each signature
 has a *sequence number* (seqno) and a sequence number
 [must not](https://eprint.iacr.org/2016/1042.pdf) be reused as it
 is likely to lead to signature forgery.

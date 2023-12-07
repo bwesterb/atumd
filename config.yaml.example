@@ -1,6 +1,6 @@
 # You probably want to configure these
 canonicalUrl: https://path.to/rproxy
-bindAddr: localhost:8080
+bindAddr: :8080
 
 # Maximum size of nonce to sign.  Best to keep above 64.
 maxNonceSize: 128
@@ -12,10 +12,16 @@ acceptableLag: 60
 # The default signature algorithm.  Either ed25519 or xmssmt.
 defaultSigAlg: xmssmt
 
+# Whether or not other signature algorithms besides defaultSigAlg 
+# are disabled. This is useful if you only want to support one algorithm.
+# NOTE: if true, you can still verify validity of timestamps generated with 
+# any other supported algorithm for the keys listed in otherTrustedPublicKeys
+disableOtherSigAlg: false
+
 # Path to store private keys.  Will be generated if not present.
 # WARNING: do not make backups or copies of xmssmt.key.  See the README.
-xmssmtKeyPath: xmssmt.key
-ed25519KeyPath: ed25519.key
+xmssmtKeyPath: /.secrets/xmssmt.key
+ed25519KeyPath: /.secrets/ed25519.key
 
 # XMSS(MT) instance to use.
 xmssmtAlg: XMSSMT-SHAKE_40/4_256
